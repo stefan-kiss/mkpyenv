@@ -40,6 +40,7 @@ OPTIONS:
     -d <true|false> - write .envrc
 ```
 ## default flags
+```
 -v 3
 -r true
 -m pipreqs
@@ -47,4 +48,4 @@ OPTIONS:
 -R false
 -B true
 -d true 
-
+```
