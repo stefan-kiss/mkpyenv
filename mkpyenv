@@ -234,6 +234,12 @@ fi
 #
 
 if [ -d "${TARGET}/venv" -a  "${OPTION_CREATE_REQS}" == "1" -a "${OPTION_CREATE_REQS_METHOD}" == "pipreqs" ]; then
+    PATH="${TARGET}/venv/bin":$PATH
+    if [ -f "${TARGET}/venv/bin/pip" ]; then
+        pip install pipreqs
+    else
+        pip3 install pipreqs
+    fi
     pipreqs "${TARGET}"
     if [ ${?} -ne 0 ]; then
         echo "failed to create requirements.txt by running pipreqs. pipreqs exited with ${?}"
