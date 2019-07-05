@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+
+#
+# Copyright 2019 Stefan Kiss.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+set -e
+
+# A POSIX variable
+OPTIND=1         # Reset in case getopts has been used previously in the shell.
+
+### DEFAULT OPTIONS
+OPTION_VERSION="3"
+OPTION_WRITE_ENVRC=1
+OPTION_FORCE=0
+
+OPTION_CREATE_REQS=1
+OPTION_CREATE_REQS_METHOD="pipreqs"
+
+# OPTIONS:
+#   localpip        -> use pip in the EXISTING local venv (require existing
+#   pipreqs         -> use pipreqs in the NEW local venv
+
+OPTION_OVERWRITE_REQS=0
+OPTION_BACKUP_REQS=1
+
+
+VAL_BAK_EXT=`date +"%Y-%M-%d.%H%M%s".bak`
+### END DEFAULT OPTIONS
+
+### FUNCTIONS
+show_help (){
+    echo "$0 [ OPTIONS ] < directory>
+OPTIONS:
+    -h show this help
+    -v <version>    - python 2 or 3 as supported by virtualenv -p python \${version}
+    -r <true|false> - create requierments file
+    -m <method>     - create requierments option. currently supporting:
+                        localpip        -> use pip in the EXISTING local venv (require existing
+                        pipreqs         -> use pipreqs in the NEW local venv
+    -F <true|false> - force overwrite an existing venv environment
+    -R <true|false> - force overwrite an existing requirements.txt
+    -B <true|false> - backup existing requirements.txt
+    -d <true|false> - write .envrc
+"
+}
+
+get_fullpath () {
+    local cwd=${PWD}
+    cd ${1}
+    local realcwd=${PWD}
+    cd ${cwd}
+    echo "${realcwd}"
+}
+
+is_available () {
+    bash -c "$1 2>&1 >/dev/null" 2>&1 >/dev/null
+    local retval=$?
+    if [ ${retval} -eq 0 ]; then
+        echo 1
+        return
+    fi
+    echo 0
+}
+
+
+write_envrc() {
+
+    cat << EOF >"${1}/.envrc"
+PATH="venv/bin/:$PATH"
+EOF
+    direnv allow "$1"
+
+}
+
+
+save_req() {
+    echo "SAVING requirements.txt to ${1}/requirements.txt.${VAL_BAK_EXT}"
+    mv "${1}/requirements.txt" "${1}/requirements.txt.${VAL_BAK_EXT}"
+}
+
+
+translate_option () {
+    case "${1}" in
+    0|"0"|"false"|"False"|"no"|"No")
+        echo 0
+        return
+        ;;
+    1|"1"|"true"|"True"|"yes"|"Yes")
+        echo 1
+        return
+        ;;
+    esac
+    echo ""
+}
+### END  FUNCTIONS
+
+### INIT
+while getopts "h?a:v:m:F:R:B:" opt; do
+    case "$opt" in
+    h|\?)
+        show_help
+        exit 0
+        ;;
+    v)  version=$OPTARG
+        ;;
+    r)  OPTION_CREATE_REQS=$(translate_option ${OPTARG})
+        ;;
+    m)  OPTION_CREATE_REQS_METHOD=$OPTARG
+        ;;
+    F)  OPTION_FORCE=$(translate_option ${OPTARG})
+        ;;
+    R)  OPTION_OVERWRITE_REQS=$(translate_option ${OPTARG})
+        ;;
+    B)  OPTION_BACKUP_REQS=$(translate_option ${OPTARG})
+        ;;
+    d)  OPTION_WRITE_ENVRC=$(translate_option ${OPTARG})
+        ;;
+    esac
+done
+
+shift $((OPTIND-1))
+[ "${1:-}" = "--" ] && shift
+
+
+if [ -z "${1}" ]; then
+    show_help
+    exit 1
+fi
+
+TARGET=${1}
+TARGET=$(get_fullpath ${TARGET})
+echo "TARGET: ${TARGET}"
+cd /tmp
+### END INIT
+
+### DISCOVER ENVIRONMENT
+FLAG_HAS_VIRTUALENV=$(is_available "virtualenv -h")
+FLAG_HAS_DIRENV=$(is_available "direnv")
+FLAG_HAS_PIPREQS=$(is_available "pipreqs -h")
+
+FLAG_HAS_LOCAL_PIP=$(is_available "${TARGET}/venv/bin/pip")
+FLAG_HAS_LOCAL_PIP3=$(is_available "${TARGET}/venv/bin/pip")
+
+VAL_PIP_EXE=""
+if [ "${FLAG_HAS_LOCAL_PIP}" == "1" ]; then
+    VAL_PIP_EXE="${TARGET}/venv/bin/pip"
+elif [ "${FLAG_HAS_LOCAL_PIP3}" == "1" ]; then
+    VAL_PIP_EXE="${TARGET}/venv/bin/pip3"
+fi
+### END DISCOVER ENVIRONMENT
+
+
+### SANITY CHECKS
+if [ "${TARGET}" == "/" ]; then
+    echo "refusing to work on /"
+    exit 1
+fi
+
+if [ -d "${TARGET}/venv" -a ${OPTION_FORCE} == 0 ]; then
+    echo "\"${TARGET}/venv\" exists and option force ( -f ) is false"
+    exit 1
+fi
+
+if [ "${FLAG_HAS_VIRTUALENV}" == "0"  ]; then
+    echo "virtualenv missing or returned error"
+    exit 1
+fi
+
+
+if [ -f "${TARGET}/requirements.txt" -a "${OPTION_OVERWRITE_REQS}" == "0" ]; then
+    echo "\"${TARGET}/requirements.txt\" exists and overwrite requirements.txt option ( -R ) is false"
+    exit 1
+fi
+
+if [ "${OPTION_WRITE_ENVRC}" == "1" -a "${FLAG_HAS_DIRENV}" == "0" ]; then
+    echo "option ( -d ) write .envrc is true but direnv not availabe or returned error"
+    exit 1
+fi
+
+if [ "${OPTION_CREATE_REQS}" == "1" -a "${OPTION_CREATE_REQS_METHOD}" == "pipreqs" -a "${FLAG_HAS_PIPREQS}" == "0" ]; then
+    echo "pipreqs is not installed or returned an error"
+    exit 1
+fi
+### END SANITY CHECKS
+
+### EXECUTE
+if [ -f "${TARGET}/requirements.txt" -a "${OPTION_BACKUP_REQS}" == "1" ]; then
+    save_req "${TARGET}"
+fi
+
+if [ -d "${TARGET}/venv" -a  "${OPTION_CREATE_REQS}" == "1" -a -n "${VAL_PIP_EXE}" -a "${OPTION_CREATE_REQS_METHOD}" == "localpip" ]; then
+    ${VAL_PIP_EXE} freeze >"${TARGET}/requirements.txt"
+    if [ ${?} -ne 0 ]; then
+        echo "failed to create requirements.txt from existing venv installation. ${VAL_PIP_EXE} exited with ${?}"
+        exit 1
+    fi
+fi
+
+
+if [ -d "${TARGET}/venv" ]; then
+    echo "REMOVING: ${TARGET}/venv"
+    rm -rf "${TARGET}/venv"
+fi
+
+if [ -f "${TARGET}/.envrc" -a "${FLAG_HAS_DIRENV}" == "1" ]; then
+    if [ "${OPTION_WRITE_ENVRC}" == "0" ]; then
+        echo "had to disable existing .envrc in order to properly execute virtualenv"
+        echo "however write .envrc option ( -d ) is false. manually run 'direnv allow' after execution or enable write .envrc"
+    fi
+    direnv deny "${TARGET}"
+fi
+
+virtualenv -p "python${version}" "${TARGET}/venv"
+
+if [ "${OPTION_WRITE_ENVRC}" == "1" ]; then
+    write_envrc "${TARGET}"
+fi
+
+#
+#if [ -f  requierments.txt ]; then
+#    "${TARGET}/venv/bin/pip" install -r requierments.txt
+#fi
+#
+
+if [ -d "${TARGET}/venv" -a  "${OPTION_CREATE_REQS}" == "1" -a "${OPTION_CREATE_REQS_METHOD}" == "pipreqs" ]; then
+    pipreqs "${TARGET}"
+    if [ ${?} -ne 0 ]; then
+        echo "failed to create requirements.txt by running pipreqs. pipreqs exited with ${?}"
+        exit 1
+    fi
+fi
+### END EXECUTE
+
+echo "DONE"
+exit 0
+
