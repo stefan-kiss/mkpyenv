@@ -106,7 +106,7 @@ translate_option () {
 ### END  FUNCTIONS
 
 ### INIT
-while getopts "h?a:v:m:F:R:B:" opt; do
+while getopts "h?a:v:r:m:F:R:B:d:" opt; do
     case "$opt" in
     h|\?)
         show_help
