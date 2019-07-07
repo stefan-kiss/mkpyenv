@@ -78,6 +78,7 @@ write_envrc() {
 
     cat << EOF >"${1}/.envrc"
 PATH="${1}/venv/bin/:$PATH"
+export PYTHONPATH="${1}:${1}/lib:${1}/src:${1}/src/lib:$PYTHONPATH"
 EOF
     direnv allow "$1"
 

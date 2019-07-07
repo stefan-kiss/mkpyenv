@@ -20,9 +20,9 @@ How to install
 ```bash
  git clone https://github.com/stefan-kiss/mkpyenv
  cd mkpyenv
- cp mkpyenv /usr/local/bin/
+ ln -s $PWD/mkpyenv /usr/local/bin/
 ```
-( make sure /usr/local/bin is in ${PATH} )
+( make sure /usr/local/bin is in $PATH )
 
 ## Usage
 ```
@@ -49,3 +49,12 @@ OPTIONS:
 -B true
 -d true 
 ```
+## notes
+
+.envrc is set to also update PYTHONPATH with the following:
+```bash
+- $TARGET/lib
+- $TARGET/src
+- $TARGET/src/lib
+```
+Currently you have to edit the script to change this. I will add command line arguments to change the defaults.
