@@ -219,7 +219,7 @@ if [ -f "${TARGET}/.envrc" -a "${FLAG_HAS_DIRENV}" == "1" ]; then
         echo "had to disable existing .envrc in order to properly execute virtualenv"
         echo "however write .envrc option ( -d ) is false. manually run 'direnv allow' after execution or enable write .envrc"
     fi
-    direnv deny "${TARGET}"
+    direnv deny "${TARGET}" || true
 fi
 
 virtualenv -p "python${version}" "${TARGET}/venv"
